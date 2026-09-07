@@ -16,7 +16,7 @@ import { AudioEngineSettings, RhythmPattern } from '../types';
 interface MusicEffectsPanelProps {
   settings: AudioEngineSettings;
   onUpdateSettings: (newSettings: Partial<AudioEngineSettings>) => void;
-  onApplyPreset: (preset: 'cathedral' | 'temple' | 'joyful' | 'meditative') => void;
+  onApplyPreset: (preset: 'pure_voice' | 'cathedral' | 'temple' | 'joyful' | 'meditative') => void;
   onClose?: () => void;
   onTriggerAiVocal?: () => void;
   isGeneratingAiAudio?: boolean;
@@ -67,9 +67,23 @@ export const MusicEffectsPanel: React.FC<MusicEffectsPanelProps> = ({
       <div>
         <label className="text-xs font-semibold text-stone-300 mb-2 flex items-center gap-1.5">
           <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-          తక్షణ సంగీత వాతావరణం (One-Touch Ambience Presets):
+          ధ్వని శైలి ఎంపిక (Audio Style Presets):
         </label>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          <button
+            onClick={() => onApplyPreset('pure_voice')}
+            className={`p-2.5 rounded-xl border text-left transition-all ${
+              settings.bgMusicStyle === 'vocals_only' && settings.bgMusicMuted && !settings.reverbEnabled
+                ? 'bg-emerald-600/20 border-emerald-500 text-emerald-200 shadow-sm'
+                : 'bg-stone-800/60 hover:bg-stone-800 border-stone-700/60 text-stone-300'
+            }`}
+          >
+            <div className="font-semibold text-xs flex items-center gap-1.5">
+              <span>📖</span> శుద్ధ వాక్యం
+            </div>
+            <div className="text-[10px] text-stone-400 mt-0.5">సంగీతం లేకుండా స్వచ్ఛమైన గాత్రం</div>
+          </button>
+
           <button
             onClick={() => onApplyPreset('cathedral')}
             className={`p-2.5 rounded-xl border text-left transition-all ${
@@ -81,13 +95,13 @@ export const MusicEffectsPanel: React.FC<MusicEffectsPanelProps> = ({
             <div className="font-semibold text-xs flex items-center gap-1.5">
               <span>🏛️</span> గాన మందిరం
             </div>
-            <div className="text-[10px] text-stone-400 mt-0.5">చర్చి ప్రతిధ్వని & ఎకో</div>
+            <div className="text-[10px] text-stone-400 mt-0.5">చర్చి ప్రతిధ్వని</div>
           </button>
 
           <button
             onClick={() => onApplyPreset('temple')}
             className={`p-2.5 rounded-xl border text-left transition-all ${
-              settings.reverbType === 'temple' && settings.rhythmPattern === 'adi_tala'
+              settings.reverbType === 'temple'
                 ? 'bg-amber-600/20 border-amber-500 text-amber-200 shadow-sm'
                 : 'bg-stone-800/60 hover:bg-stone-800 border-stone-700/60 text-stone-300'
             }`}
@@ -95,27 +109,27 @@ export const MusicEffectsPanel: React.FC<MusicEffectsPanelProps> = ({
             <div className="font-semibold text-xs flex items-center gap-1.5">
               <span>🛕</span> దేవాలయ శాంతి
             </div>
-            <div className="text-[10px] text-stone-400 mt-0.5">మృదంగ తాళం & తంబుర</div>
+            <div className="text-[10px] text-stone-400 mt-0.5">ప్రశాంత వాతావరణం</div>
           </button>
 
           <button
             onClick={() => onApplyPreset('joyful')}
             className={`p-2.5 rounded-xl border text-left transition-all ${
-              settings.rhythmPattern === 'bhajana_tala'
+              settings.speed > 1.0
                 ? 'bg-amber-600/20 border-amber-500 text-amber-200 shadow-sm'
                 : 'bg-stone-800/60 hover:bg-stone-800 border-stone-700/60 text-stone-300'
             }`}
           >
             <div className="font-semibold text-xs flex items-center gap-1.5">
-              <span>🥁</span> ఉల్లాస సంకీర్తన
+              <span>🕊️</span> ఉల్లాస పఠనం
             </div>
-            <div className="text-[10px] text-stone-400 mt-0.5">భజన తాళం & వేగం</div>
+            <div className="text-[10px] text-stone-400 mt-0.5">ఉత్తేజకరమైన వేగం</div>
           </button>
 
           <button
             onClick={() => onApplyPreset('meditative')}
             className={`p-2.5 rounded-xl border text-left transition-all ${
-              settings.reverbType === 'cathedral' && !settings.rhythmEnabled
+              settings.speed < 1.0
                 ? 'bg-amber-600/20 border-amber-500 text-amber-200 shadow-sm'
                 : 'bg-stone-800/60 hover:bg-stone-800 border-stone-700/60 text-stone-300'
             }`}
@@ -123,7 +137,7 @@ export const MusicEffectsPanel: React.FC<MusicEffectsPanelProps> = ({
             <div className="font-semibold text-xs flex items-center gap-1.5">
               <span>🪷</span> ధ్యాన ప్రార్థన
             </div>
-            <div className="text-[10px] text-stone-400 mt-0.5">ప్రశాంత శ్రుతి & వేణువు</div>
+            <div className="text-[10px] text-stone-400 mt-0.5">ప్రశాంత ధ్యానం</div>
           </button>
         </div>
       </div>

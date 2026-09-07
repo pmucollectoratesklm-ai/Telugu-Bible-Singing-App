@@ -57,48 +57,48 @@ export class TeluguAudioEngine {
   private elapsedTime: number = 0;
   private totalDuration: number = 0;
 
-  // Default Soothing & Devotional Settings
+  // Default Clean, Peaceful Recitation Settings (Annoying music removed)
   private settings: AudioEngineSettings = {
     speed: 1.0,
     pitchSemi: 0,
-    masterVolume: 0.9,
+    masterVolume: 0.95,
     vocalVolume: 1.0,
-    accompanimentVolume: 0.38, // Gentle, soothing worship accompaniment
-    tanpuraVolume: 0.2,
+    accompanimentVolume: 0.0, // Muted by default
+    tanpuraVolume: 0.0,       // Muted by default
     voiceId: 'priya_melodic',
     ragaId: 'mohanam',
 
-    // Soothing Background Music Defaults
-    bgMusicStyle: 'worship_piano', // Christian Worship Piano & Silky Strings Pad
-    bgMusicMuted: false,
+    // Pure Clean Vocals / Recitation - NO annoying background music
+    bgMusicStyle: 'vocals_only',
+    bgMusicMuted: true, // MUTED by default
 
     // Listening Scope (Whole Chapter vs Individual Verse)
     listenMode: 'chapter',
     repeatMode: 'none',
     autoAdvanceVerse: true,
 
-    // Devotional Effects Defaults
-    reverbEnabled: true,
-    reverbLevel: 0.45,
-    reverbType: 'cathedral',
+    // Devotional Effects Defaults (OFF to keep voice clear and natural)
+    reverbEnabled: false,
+    reverbLevel: 0.15,
+    reverbType: 'sanctuary',
 
-    echoEnabled: true,
-    echoTime: 0.32,
-    echoFeedback: 0.28,
-    echoLevel: 0.22,
+    echoEnabled: false,
+    echoTime: 0.2,
+    echoFeedback: 0.15,
+    echoLevel: 0.1,
 
-    chorusEnabled: true,
-    chorusLevel: 0.3,
+    chorusEnabled: false,
+    chorusLevel: 0.15,
 
-    rhythmEnabled: false, // OFF by default to eliminate harsh rhythmic clicking
-    rhythmPattern: 'adi_tala',
-    rhythmVolume: 0.25,
+    rhythmEnabled: false, // OFF
+    rhythmPattern: 'none',
+    rhythmVolume: 0.0,
 
-    fluteEnabled: false, // OFF by default to prevent clashing notes
-    fluteVolume: 0.25,
+    fluteEnabled: false, // OFF
+    fluteVolume: 0.0,
 
-    eqBass: 2.0,
-    eqTreble: 2.5,
+    eqBass: 0.0,
+    eqTreble: 0.0,
 
     vocalMode: 'gemini_ai',
   };
@@ -533,86 +533,79 @@ export class TeluguAudioEngine {
   }
 
   // --- ATMOSPHERE SOUNDSCAPE PRESETS ---
-  public applyAmbiencePreset(preset: 'cathedral' | 'temple' | 'joyful' | 'meditative') {
+  public applyAmbiencePreset(preset: 'pure_voice' | 'cathedral' | 'temple' | 'joyful' | 'meditative') {
     switch (preset) {
-      case 'cathedral':
+      case 'pure_voice':
         this.updateSettings({
-          bgMusicStyle: 'worship_piano',
-          bgMusicMuted: false,
-          reverbEnabled: true,
-          reverbType: 'cathedral',
-          reverbLevel: 0.6,
-          echoEnabled: true,
-          echoTime: 0.38,
-          echoFeedback: 0.3,
-          echoLevel: 0.25,
-          chorusEnabled: true,
-          chorusLevel: 0.35,
+          bgMusicStyle: 'vocals_only',
+          bgMusicMuted: true,
+          reverbEnabled: false,
+          echoEnabled: false,
+          chorusEnabled: false,
           rhythmEnabled: false,
           fluteEnabled: false,
-          eqBass: 2.5,
-          eqTreble: 3.5,
+          accompanimentVolume: 0.0,
+          tanpuraVolume: 0.0,
+          rhythmVolume: 0.0,
+          eqBass: 0.0,
+          eqTreble: 0.0,
+        });
+        break;
+
+      case 'cathedral':
+        this.updateSettings({
+          bgMusicStyle: 'vocals_only',
+          bgMusicMuted: true,
+          reverbEnabled: true,
+          reverbType: 'cathedral',
+          reverbLevel: 0.3,
+          echoEnabled: false,
+          chorusEnabled: false,
+          rhythmEnabled: false,
+          fluteEnabled: false,
         });
         break;
 
       case 'temple':
         this.updateSettings({
-          bgMusicStyle: 'soothing_tanpura',
-          bgMusicMuted: false,
+          bgMusicStyle: 'vocals_only',
+          bgMusicMuted: true,
           reverbEnabled: true,
           reverbType: 'temple',
-          reverbLevel: 0.5,
-          echoEnabled: true,
-          echoTime: 0.3,
-          echoFeedback: 0.22,
-          echoLevel: 0.2,
-          chorusEnabled: true,
-          chorusLevel: 0.25,
+          reverbLevel: 0.25,
+          echoEnabled: false,
+          chorusEnabled: false,
           rhythmEnabled: false,
           fluteEnabled: false,
-          eqBass: 2.0,
-          eqTreble: 2.0,
         });
         break;
 
       case 'joyful':
         this.updateSettings({
-          bgMusicStyle: 'worship_piano',
-          bgMusicMuted: false,
+          bgMusicStyle: 'vocals_only',
+          bgMusicMuted: true,
           reverbEnabled: true,
           reverbType: 'sanctuary',
-          reverbLevel: 0.35,
-          echoEnabled: true,
-          echoTime: 0.24,
-          echoFeedback: 0.2,
-          echoLevel: 0.18,
-          chorusEnabled: true,
-          chorusLevel: 0.4,
-          speed: 1.1,
+          reverbLevel: 0.2,
+          echoEnabled: false,
+          chorusEnabled: false,
+          speed: 1.05,
           rhythmEnabled: false,
           fluteEnabled: false,
-          eqBass: 3.0,
-          eqTreble: 4.0,
         });
         break;
 
       case 'meditative':
         this.updateSettings({
-          bgMusicStyle: 'sacred_strings',
-          bgMusicMuted: false,
+          bgMusicStyle: 'vocals_only',
+          bgMusicMuted: true,
           reverbEnabled: true,
-          reverbType: 'cathedral',
-          reverbLevel: 0.55,
-          echoEnabled: true,
-          echoTime: 0.45,
-          echoFeedback: 0.35,
-          echoLevel: 0.3,
-          chorusEnabled: true,
-          chorusLevel: 0.45,
+          reverbType: 'sanctuary',
+          reverbLevel: 0.25,
+          echoEnabled: false,
+          chorusEnabled: false,
           rhythmEnabled: false,
-          speed: 0.9,
-          eqBass: 2.5,
-          eqTreble: 2.0,
+          speed: 0.95,
         });
         break;
     }
@@ -980,8 +973,12 @@ export class TeluguAudioEngine {
 
       this.totalDuration = audioBuffer.duration / rate;
 
-      // Play subtle background accompaniment behind AI vocal
-      if (this.ctx) {
+      // Only play background accompaniment if explicitly unmuted by user
+      if (
+        this.ctx &&
+        !this.settings.bgMusicMuted &&
+        this.settings.bgMusicStyle !== 'vocals_only'
+      ) {
         this.playBackgroundAccompaniment(
           this.ctx.currentTime,
           audioBuffer.duration / rate,
@@ -995,7 +992,7 @@ export class TeluguAudioEngine {
 
       this.audioBufferSource.start(0);
     } catch (err) {
-      console.warn('Falling back to synthesized singing:', err);
+      console.warn('Falling back to clean scripture recitation:', err);
       this.playCurrentVerse();
     }
   }
@@ -1011,46 +1008,30 @@ export class TeluguAudioEngine {
     const currentVerse = this.verses[this.currentVerseIndex];
     const voice = VOICE_OPTIONS.find((v) => v.id === this.settings.voiceId) || VOICE_OPTIONS[0];
 
-    const pitchFactor = Math.pow(2, (this.settings.pitchSemi + voice.pitchOffset) / 12);
-    const speed = this.settings.speed;
-
-    // Trigger gentle temple chime at verse inception
-    if (this.ctx && !this.settings.bgMusicMuted) {
-      this.playTempleChime(this.ctx.currentTime + 0.05, 0.07);
+    // Clear any previous timeouts
+    if (this.melodyTimeout) {
+      clearTimeout(this.melodyTimeout);
+      this.melodyTimeout = null;
     }
 
-    // Melodic Swara progression based on devotional scale
-    const baseFreqs = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 440.0, 392.0];
-    const noteDuration = 1.15 / speed;
-    const totalVerseTime = baseFreqs.length * noteDuration + 1.4 / speed;
-
-    // Trigger soothing background music accompaniment under the verse
-    if (this.ctx) {
+    // Only play background accompaniment if explicitly turned on by user
+    if (
+      this.ctx &&
+      !this.settings.bgMusicMuted &&
+      this.settings.bgMusicStyle !== 'vocals_only'
+    ) {
+      const approxDuration = Math.max(3.5, (currentVerse.teluguText.length * 0.08) / this.settings.speed);
       this.playBackgroundAccompaniment(
         this.ctx.currentTime,
-        totalVerseTime,
+        approxDuration,
         this.settings.pitchSemi
       );
     }
 
-    baseFreqs.forEach((base, idx) => {
-      if (!this.ctx) return;
-      const t = this.ctx.currentTime + idx * noteDuration;
-      const f = base * pitchFactor;
-      const nextF = idx < baseFreqs.length - 1 ? baseFreqs[idx + 1] * pitchFactor : undefined;
-
-      // Resonant vocal singing note with Gamaka portamento
-      this.playVocalSyllable(f, t, noteDuration * 0.95, voice, nextF);
-    });
-
-    // Also support speech synthesis if Telugu voice is present in browser
+    // Recite the Holy Telugu Scripture purely, clearly, and peacefully (NO annoying synth beeps)
     this.speakVerseText(currentVerse.teluguText, voice);
 
     this.notifyState();
-
-    this.melodyTimeout = window.setTimeout(() => {
-      this.handleVerseEnd();
-    }, totalVerseTime * 1000);
   }
 
   // Handles transition at the end of a verse based on listenMode (Whole Chapter vs Individual Verse)
@@ -1092,42 +1073,94 @@ export class TeluguAudioEngine {
   }
 
   private speakVerseText(teluguText: string, voice: VoiceOption) {
-    if (!('speechSynthesis' in window)) return;
+    if (this.melodyTimeout) {
+      clearTimeout(this.melodyTimeout);
+      this.melodyTimeout = null;
+    }
+
+    const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    if (!hasSpeech) {
+      // Fallback timer if speech synthesis is unavailable
+      const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
+      this.totalDuration = approxSec;
+      this.melodyTimeout = setTimeout(() => {
+        this.handleVerseEnd();
+      }, approxSec * 1000) as unknown as number;
+      return;
+    }
 
     try {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(teluguText);
       const voices = window.speechSynthesis.getVoices();
 
-      const teluguVoice = voices.find(
-        (v) =>
-          v.lang === 'te-IN' ||
-          v.lang.includes('te') ||
-          v.lang.includes('ta') ||
-          v.name.toLowerCase().includes('telugu')
-      );
+      // Find dedicated Telugu voice or Indian localized voice
+      const teluguVoice =
+        voices.find(
+          (v) =>
+            v.lang === 'te-IN' ||
+            v.lang.startsWith('te') ||
+            v.name.toLowerCase().includes('telugu')
+        ) ||
+        voices.find(
+          (v) => v.lang.startsWith('hi') || v.lang.startsWith('en-IN')
+        );
 
       if (teluguVoice) {
         utterance.voice = teluguVoice;
       }
 
-      utterance.rate = Math.max(0.6, Math.min(1.6, 0.82 * this.settings.speed));
+      utterance.rate = Math.max(0.6, Math.min(1.4, 0.85 * this.settings.speed));
       utterance.pitch = Math.max(
-        0.5,
-        Math.min(1.5, 1.0 + this.settings.pitchSemi / 12 + (voice.gender === 'female' ? 0.25 : -0.15))
+        0.6,
+        Math.min(1.4, 1.0 + (voice.gender === 'female' ? 0.12 : -0.1))
       );
-      utterance.volume = this.settings.vocalVolume * this.settings.masterVolume * 0.85;
+      utterance.volume = Math.min(1.0, this.settings.vocalVolume * this.settings.masterVolume);
 
+      // Synchronize visual word reading
       utterance.onboundary = (e) => {
         if (e.name === 'word') {
-          this.currentLineIndex = Math.floor(e.charIndex / 14);
+          this.currentLineIndex = Math.floor(e.charIndex / 16);
           this.notifyState();
+        }
+      };
+
+      // When the verse finishes naturally:
+      utterance.onend = () => {
+        if (!this.isPlaying || this.isPaused) return;
+        // Natural peaceful pause before moving to the next verse
+        this.melodyTimeout = setTimeout(() => {
+          this.handleVerseEnd();
+        }, 650) as unknown as number;
+      };
+
+      utterance.onerror = (e) => {
+        console.warn('Speech recitation notice:', e);
+        if (this.isPlaying && !this.isPaused) {
+          const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
+          this.melodyTimeout = setTimeout(() => {
+            this.handleVerseEnd();
+          }, approxSec * 1000) as unknown as number;
         }
       };
 
       this.speechUtterance = utterance;
       window.speechSynthesis.speak(utterance);
-    } catch {}
+
+      // Watchdog timeout in case speech engine stalls
+      const maxEstimatedSec = Math.max(6.0, (teluguText.length * 0.2) / this.settings.speed);
+      this.melodyTimeout = setTimeout(() => {
+        if (this.isPlaying && !this.isPaused) {
+          this.handleVerseEnd();
+        }
+      }, maxEstimatedSec * 1000) as unknown as number;
+    } catch (err) {
+      console.warn('Speech synthesis initialization error:', err);
+      const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
+      this.melodyTimeout = setTimeout(() => {
+        this.handleVerseEnd();
+      }, approxSec * 1000) as unknown as number;
+    }
   }
 
   private startTracking() {
