@@ -22,14 +22,24 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="sticky top-0 z-30 w-full border-b border-stone-200/80 bg-stone-50/90 backdrop-blur-md">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between gap-4">
-        {/* Minimal Brand */}
-        <div className="flex items-center gap-2">
-          <span className="text-base sm:text-lg font-bold text-stone-900 font-serif tracking-tight">
-            పరిశుద్ధ గ్రంథము
-          </span>
-          <span className="text-[11px] font-sans text-stone-400 hidden sm:inline">
-            Telugu Holy Bible
-          </span>
+        {/* Catchy Brand */}
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-amber-600 to-amber-800 text-white flex items-center justify-center shadow-xs font-serif font-bold text-sm">
+            గీ
+          </div>
+          <div>
+            <div className="flex items-center gap-1.5 leading-none">
+              <span className="text-base sm:text-lg font-bold text-stone-950 font-serif tracking-tight">
+                గానవేదం
+              </span>
+              <span className="text-[11px] font-sans font-semibold text-amber-700 uppercase tracking-wider hidden xs:inline">
+                GanaVedam
+              </span>
+            </div>
+            <p className="text-[10px] text-stone-400 font-sans mt-0.5 leading-none hidden sm:block">
+              తెలుగు గాన బైబిల్ • Melodic Singing Scripture
+            </p>
+          </div>
         </div>
 
         {/* Center: Current Scripture Quick Selector Button */}

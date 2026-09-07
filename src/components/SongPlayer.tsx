@@ -29,6 +29,9 @@ interface SongPlayerProps {
   onPrev: () => void;
   onNext: () => void;
   analyser: AnalyserNode | null;
+  isChapterCompleted?: boolean;
+  isAnnouncingCompletion?: boolean;
+  announcementText?: string;
   onPlayWholeChapter?: (startIndex?: number) => void;
   onPlaySingleVerse?: (index: number) => void;
   onGenerateAiAudio?: () => Promise<void>;
@@ -55,6 +58,9 @@ export const SongPlayer: React.FC<SongPlayerProps> = ({
   onPrev,
   onNext,
   analyser,
+  isChapterCompleted = false,
+  isAnnouncingCompletion = false,
+  announcementText = '',
 }) => {
   const formatTime = (secs: number) => {
     if (isNaN(secs) || secs < 0) return '0:00';
@@ -85,18 +91,45 @@ export const SongPlayer: React.FC<SongPlayerProps> = ({
         {/* Left: Scripture Verse Info */}
         <div className="flex items-center gap-3 w-full sm:w-auto min-w-0 justify-between sm:justify-start">
           <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="font-serif font-bold text-amber-400 text-sm tracking-tight">
-                {currentBookName} {currentChapter}:{currentVerseIndex + 1}
-              </span>
-              <span className="text-[11px] text-stone-400">
-                ({currentVerseIndex + 1}/{totalVerses})
-              </span>
-            </div>
-            {currentVerseText && (
-              <p className="text-xs text-stone-300 truncate max-w-[260px] sm:max-w-xs font-serif mt-0.5">
-                {currentVerseText}
-              </p>
+            {isAnnouncingCompletion ? (
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-serif font-bold text-amber-400 text-sm tracking-tight flex items-center gap-1.5 animate-pulse">
+                    <Volume2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    అధ్యాయము సమాప్తమైనది...
+                  </span>
+                </div>
+                <p className="text-xs text-stone-300 truncate max-w-[260px] sm:max-w-xs font-serif mt-0.5">
+                  {announcementText || `${currentBookName} ${currentChapter}వ అధ్యాయము సమాప్తమైనది.`}
+                </p>
+              </div>
+            ) : isChapterCompleted ? (
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-serif font-bold text-emerald-400 text-sm tracking-tight flex items-center gap-1">
+                    ✓ {currentBookName} {currentChapter}వ అధ్యాయము
+                  </span>
+                </div>
+                <p className="text-xs text-stone-300 truncate max-w-[260px] sm:max-w-xs font-serif mt-0.5">
+                  సంపూర్ణముగా చదవబడినది. దేవునికి స్తోత్రము.
+                </p>
+              </div>
+            ) : (
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-serif font-bold text-amber-400 text-sm tracking-tight">
+                    {currentBookName} {currentChapter}:{currentVerseIndex + 1}
+                  </span>
+                  <span className="text-[11px] text-stone-400">
+                    ({currentVerseIndex + 1}/{totalVerses})
+                  </span>
+                </div>
+                {currentVerseText && (
+                  <p className="text-xs text-stone-300 truncate max-w-[260px] sm:max-w-xs font-serif mt-0.5">
+                    {currentVerseText}
+                  </p>
+                )}
+              </div>
             )}
           </div>
 
@@ -130,7 +163,7 @@ export const SongPlayer: React.FC<SongPlayerProps> = ({
             <SkipBack className="w-4 h-4" />
           </button>
 
-          {/* Play / Pause / Resume */}
+          {/* Play / Pause / Resume / Replay */}
           <button
             id="player-play-btn"
             onClick={() => {
@@ -143,7 +176,13 @@ export const SongPlayer: React.FC<SongPlayerProps> = ({
               }
             }}
             className="w-10 h-10 rounded-full bg-amber-500 hover:bg-amber-400 text-stone-950 flex items-center justify-center shadow-md active:scale-95 transition-all"
-            title={isPlaying && !isPaused ? 'విరామం (Pause)' : 'వినండి (Play)'}
+            title={
+              isChapterCompleted
+                ? 'మరల వినండి (Replay Chapter)'
+                : isPlaying && !isPaused
+                ? 'విరామం (Pause)'
+                : 'వినండి (Play)'
+            }
           >
             {isPlaying && !isPaused ? (
               <Pause className="w-5 h-5 fill-current" />

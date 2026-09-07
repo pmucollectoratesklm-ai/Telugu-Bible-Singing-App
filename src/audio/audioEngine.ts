@@ -15,6 +15,9 @@ export type PlaybackCallback = (state: {
   currentVerseIndex: number;
   currentLineIndex: number;
   isPaused: boolean;
+  isChapterCompleted?: boolean;
+  isAnnouncingCompletion?: boolean;
+  announcementText?: string;
 }) => void;
 
 export class TeluguAudioEngine {
@@ -106,17 +109,41 @@ export class TeluguAudioEngine {
   // Timers and loop references
   private playbackInterval: number | null = null;
   private melodyTimeout: number | null = null;
+  private startupCheckTimeout: number | null = null;
+  private speechKeepAliveInterval: number | null = null;
   private tanpuraOscillators: OscillatorNode[] = [];
   private tanpuraRunning: boolean = false;
   private rhythmInterval: number | null = null;
   private rhythmStep: number = 0;
   private audioBufferSource: AudioBufferSourceNode | null = null;
   private speechUtterance: SpeechSynthesisUtterance | null = null;
+  private speechHasStarted: boolean = false;
+
+  // Chapter Completion Announcement State
+  private isChapterCompleted: boolean = false;
+  private isAnnouncingCompletion: boolean = false;
+  private chapterAnnouncementText: string = '';
+
+  // Cached system voices
+  private availableVoices: SpeechSynthesisVoice[] = [];
 
   private onStateChange: PlaybackCallback | null = null;
 
   constructor() {
-    // Lazy initialisation on user gesture
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      const loadVoices = () => {
+        try {
+          const v = window.speechSynthesis.getVoices();
+          if (v && v.length > 0) {
+            this.availableVoices = v;
+          }
+        } catch {}
+      };
+      loadVoices();
+      if (typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+      }
+    }
   }
 
   public init() {
@@ -997,22 +1024,87 @@ export class TeluguAudioEngine {
     }
   }
 
+  // Helper to select the most authentic Telugu or Indian voice available
+  private getBestTeluguVoice(): SpeechSynthesisVoice | null {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null;
+    const voices =
+      this.availableVoices.length > 0 ? this.availableVoices : window.speechSynthesis.getVoices();
+    if (!voices || voices.length === 0) return null;
+
+    // 1. Dedicated Telugu language codes
+    const teluguVoice = voices.find(
+      (v) =>
+        v.lang === 'te-IN' ||
+        v.lang === 'te_IN' ||
+        v.lang.toLowerCase().startsWith('te-') ||
+        v.lang.toLowerCase() === 'te'
+    );
+    if (teluguVoice) return teluguVoice;
+
+    // 2. Name contains 'telugu'
+    const nameMatch = voices.find((v) => v.name.toLowerCase().includes('telugu'));
+    if (nameMatch) return nameMatch;
+
+    // 3. Indian subcontinent voice (Hindi / Indian English)
+    const indianVoice = voices.find((v) => v.lang === 'hi-IN' || v.lang === 'en-IN');
+    if (indianVoice) return indianVoice;
+
+    // 4. Any default voice
+    return voices.find((v) => v.default) || voices[0] || null;
+  }
+
+  // Chrome speech worker keepalive: prevents Chrome from pausing speech > 12s
+  private startSpeechKeepAlive() {
+    this.clearSpeechKeepAlive();
+    this.speechKeepAliveInterval = window.setInterval(() => {
+      if (
+        typeof window !== 'undefined' &&
+        'speechSynthesis' in window &&
+        window.speechSynthesis.speaking &&
+        !window.speechSynthesis.paused
+      ) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 7000) as unknown as number;
+  }
+
+  private clearSpeechKeepAlive() {
+    if (this.speechKeepAliveInterval !== null) {
+      clearInterval(this.speechKeepAliveInterval);
+      this.speechKeepAliveInterval = null;
+    }
+  }
+
+  private clearAllSpeechTimers() {
+    if (this.melodyTimeout !== null) {
+      clearTimeout(this.melodyTimeout);
+      this.melodyTimeout = null;
+    }
+    if (this.startupCheckTimeout !== null) {
+      clearTimeout(this.startupCheckTimeout);
+      this.startupCheckTimeout = null;
+    }
+    this.clearSpeechKeepAlive();
+  }
+
   private playCurrentVerse() {
     if (!this.isPlaying || this.isPaused || this.currentVerseIndex >= this.verses.length) {
       if (this.currentVerseIndex >= this.verses.length) {
-        this.stop();
+        this.readoutChapterCompletion();
       }
       return;
     }
 
+    this.isChapterCompleted = false;
+    this.isAnnouncingCompletion = false;
+    this.chapterAnnouncementText = '';
+
     const currentVerse = this.verses[this.currentVerseIndex];
     const voice = VOICE_OPTIONS.find((v) => v.id === this.settings.voiceId) || VOICE_OPTIONS[0];
 
-    // Clear any previous timeouts
-    if (this.melodyTimeout) {
-      clearTimeout(this.melodyTimeout);
-      this.melodyTimeout = null;
-    }
+    // Clear any previous speech timers
+    this.clearAllSpeechTimers();
 
     // Only play background accompaniment if explicitly turned on by user
     if (
@@ -1020,7 +1112,10 @@ export class TeluguAudioEngine {
       !this.settings.bgMusicMuted &&
       this.settings.bgMusicStyle !== 'vocals_only'
     ) {
-      const approxDuration = Math.max(3.5, (currentVerse.teluguText.length * 0.08) / this.settings.speed);
+      const approxDuration = Math.max(
+        3.5,
+        (currentVerse.teluguText.length * 0.08) / this.settings.speed
+      );
       this.playBackgroundAccompaniment(
         this.ctx.currentTime,
         approxDuration,
@@ -1028,29 +1123,160 @@ export class TeluguAudioEngine {
       );
     }
 
-    // Recite the Holy Telugu Scripture purely, clearly, and peacefully (NO annoying synth beeps)
+    // Recite the Holy Telugu Scripture purely, clearly, and peacefully
     this.speakVerseText(currentVerse.teluguText, voice);
 
     this.notifyState();
   }
 
-  // Handles transition at the end of a verse based on listenMode (Whole Chapter vs Individual Verse)
+  // Recites verse text till the very last word and letter without skipping
+  private speakVerseText(teluguText: string, voice: VoiceOption) {
+    this.clearAllSpeechTimers();
+
+    const cleanText = teluguText.trim();
+    if (!cleanText) {
+      this.handleVerseEnd();
+      return;
+    }
+
+    const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
+    if (!hasSpeech) {
+      // Fallback timer if speech synthesis is completely unavailable in the browser environment
+      const approxSec = Math.max(4.0, (cleanText.length * 0.12) / this.settings.speed);
+      this.totalDuration = approxSec;
+      this.melodyTimeout = setTimeout(() => {
+        this.handleVerseEnd();
+      }, approxSec * 1000) as unknown as number;
+      return;
+    }
+
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
+
+      // Explicitly set language tag to Telugu (India) for correct phonetics & intonation
+      utterance.lang = 'te-IN';
+
+      const teluguVoice = this.getBestTeluguVoice();
+      if (teluguVoice) {
+        utterance.voice = teluguVoice;
+      }
+
+      // Safe, steady recitation rate: slow down slightly so every compound consonant is enunciated
+      utterance.rate = Math.max(0.65, Math.min(1.2, 0.82 * this.settings.speed));
+      utterance.pitch = Math.max(
+        0.7,
+        Math.min(1.3, 1.0 + (voice.gender === 'female' ? 0.08 : -0.06))
+      );
+      utterance.volume = Math.min(1.0, this.settings.vocalVolume * this.settings.masterVolume);
+
+      let hasEnded = false;
+      this.speechHasStarted = false;
+
+      // When speech actually starts:
+      utterance.onstart = () => {
+        this.speechHasStarted = true;
+        if (this.startupCheckTimeout !== null) {
+          clearTimeout(this.startupCheckTimeout);
+          this.startupCheckTimeout = null;
+        }
+        // Start keepalive to prevent browser speech worker from sleeping mid-sentence
+        this.startSpeechKeepAlive();
+      };
+
+      // Synchronize visual word reading
+      utterance.onboundary = (e) => {
+        if (e.name === 'word') {
+          this.currentLineIndex = Math.floor(e.charIndex / 16);
+          this.notifyState();
+        }
+      };
+
+      // When the verse finishes naturally to the very last word and letter:
+      utterance.onend = () => {
+        if (hasEnded) return;
+        hasEnded = true;
+        this.clearSpeechKeepAlive();
+        (window as any).__teluguUtterance = null;
+
+        if (!this.isPlaying || this.isPaused) return;
+
+        // Natural, serene pause before moving to the next verse so the ending syllable resonates
+        this.melodyTimeout = setTimeout(() => {
+          if (this.isPlaying && !this.isPaused) {
+            this.handleVerseEnd();
+          }
+        }, 650) as unknown as number;
+      };
+
+      utterance.onerror = (e) => {
+        // Canceled or interrupted events are normal when user paused or skipped
+        if (e.error === 'canceled' || e.error === 'interrupted') {
+          return;
+        }
+        if (hasEnded) return;
+        hasEnded = true;
+        this.clearSpeechKeepAlive();
+        (window as any).__teluguUtterance = null;
+
+        console.warn('Speech recitation notice:', e.error);
+        if (this.isPlaying && !this.isPaused) {
+          this.melodyTimeout = setTimeout(() => {
+            this.handleVerseEnd();
+          }, 600) as unknown as number;
+        }
+      };
+
+      // Prevent garbage collection by browser
+      (window as any).__teluguUtterance = utterance;
+      this.speechUtterance = utterance;
+
+      // Small async delay to allow window.speechSynthesis.cancel() to fully settle in Chromium
+      setTimeout(() => {
+        if (this.isPlaying && !this.isPaused) {
+          try {
+            window.speechSynthesis.speak(utterance);
+          } catch (err) {
+            console.warn('SpeechSynthesis.speak error:', err);
+            this.handleVerseEnd();
+          }
+        }
+      }, 40);
+
+      // ONLY a startup failsafe: if after 6 seconds speech NEVER started and browser is not speaking
+      this.startupCheckTimeout = setTimeout(() => {
+        if (
+          this.isPlaying &&
+          !this.isPaused &&
+          !hasEnded &&
+          !this.speechHasStarted &&
+          !window.speechSynthesis.speaking
+        ) {
+          console.warn('Speech engine did not start; gracefully advancing');
+          this.handleVerseEnd();
+        }
+      }, 6000) as unknown as number;
+    } catch (err) {
+      console.warn('Speech synthesis initialization error:', err);
+      const approxSec = Math.max(3.5, (cleanText.length * 0.1) / this.settings.speed);
+      this.melodyTimeout = setTimeout(() => {
+        this.handleVerseEnd();
+      }, approxSec * 1000) as unknown as number;
+    }
+  }
+
+  // Handles transition at the end of a verse
   private handleVerseEnd() {
     if (!this.isPlaying || this.isPaused) return;
 
     if (this.settings.listenMode === 'chapter') {
-      // Whole Chapter mode: automatically proceed to next verse
+      // Whole Chapter mode: automatically proceed to next verse until last verse
       if (this.currentVerseIndex < this.verses.length - 1) {
         this.currentVerseIndex++;
         this.playCurrentVerse();
       } else {
-        // Reached end of chapter
-        if (this.settings.repeatMode === 'chapter') {
-          this.currentVerseIndex = 0;
-          this.playCurrentVerse();
-        } else {
-          this.stop();
-        }
+        // Reached end of chapter! Read out chapter completion!
+        this.readoutChapterCompletion();
       }
     } else {
       // Individual Verse mode
@@ -1063,103 +1289,123 @@ export class TeluguAudioEngine {
           this.currentVerseIndex++;
           this.playCurrentVerse();
         } else {
-          this.stop();
+          this.readoutChapterCompletion();
         }
       } else {
-        // Stop cleanly after this individual verse
-        this.stop();
+        // Finished single verse
+        this.readoutChapterCompletion();
       }
     }
   }
 
-  private speakVerseText(teluguText: string, voice: VoiceOption) {
-    if (this.melodyTimeout) {
-      clearTimeout(this.melodyTimeout);
-      this.melodyTimeout = null;
-    }
+  // Reads out the chapter completion notice clearly after all verses finish
+  private readoutChapterCompletion() {
+    if (!this.isPlaying || this.isPaused) return;
+
+    const currentVerse = this.verses[this.currentVerseIndex] || this.verses[0];
+    const bookName = currentVerse?.bookNameTelugu || 'పరిశుద్ధ గ్రంథము';
+    const chapterNumber = currentVerse?.chapterNumber;
+
+    // Sacred chapter completion announcement in Telugu
+    const announcement = `${bookName} ${chapterNumber ? `${chapterNumber}వ ` : ''}అధ్యాయము సంపూర్ణముగా సమాప్తమైనది. దేవునికి స్తోత్రము.`;
+
+    this.isAnnouncingCompletion = true;
+    this.isChapterCompleted = false;
+    this.chapterAnnouncementText = announcement;
+    this.notifyState();
+
+    const voice = VOICE_OPTIONS.find((v) => v.id === this.settings.voiceId) || VOICE_OPTIONS[0];
+
+    this.speakAnnouncementText(announcement, voice, () => {
+      this.isAnnouncingCompletion = false;
+      this.isChapterCompleted = true;
+      this.notifyState();
+
+      if (this.settings.repeatMode === 'chapter') {
+        // Repeat chapter mode: restart from verse 0 after peaceful pause
+        this.melodyTimeout = setTimeout(() => {
+          if (this.isPlaying && !this.isPaused) {
+            this.currentVerseIndex = 0;
+            this.isChapterCompleted = false;
+            this.playCurrentVerse();
+          }
+        }, 1500) as unknown as number;
+      } else {
+        // Chapter recitation complete
+        this.stopTracking();
+        this.stopTanpura();
+        this.stopRhythm();
+        this.isPlaying = false;
+        this.isPaused = false;
+        this.notifyState();
+      }
+    });
+  }
+
+  // Speaks an announcement message (such as chapter completion)
+  private speakAnnouncementText(text: string, voice: VoiceOption, onDone: () => void) {
+    this.clearAllSpeechTimers();
 
     const hasSpeech = typeof window !== 'undefined' && 'speechSynthesis' in window;
     if (!hasSpeech) {
-      // Fallback timer if speech synthesis is unavailable
-      const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
-      this.totalDuration = approxSec;
-      this.melodyTimeout = setTimeout(() => {
-        this.handleVerseEnd();
-      }, approxSec * 1000) as unknown as number;
+      setTimeout(onDone, 2000);
       return;
     }
 
     try {
       window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(teluguText);
-      const voices = window.speechSynthesis.getVoices();
-
-      // Find dedicated Telugu voice or Indian localized voice
-      const teluguVoice =
-        voices.find(
-          (v) =>
-            v.lang === 'te-IN' ||
-            v.lang.startsWith('te') ||
-            v.name.toLowerCase().includes('telugu')
-        ) ||
-        voices.find(
-          (v) => v.lang.startsWith('hi') || v.lang.startsWith('en-IN')
-        );
-
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'te-IN';
+      const teluguVoice = this.getBestTeluguVoice();
       if (teluguVoice) {
         utterance.voice = teluguVoice;
       }
-
-      utterance.rate = Math.max(0.6, Math.min(1.4, 0.85 * this.settings.speed));
-      utterance.pitch = Math.max(
-        0.6,
-        Math.min(1.4, 1.0 + (voice.gender === 'female' ? 0.12 : -0.1))
-      );
+      utterance.rate = 0.82;
+      utterance.pitch = 1.0;
       utterance.volume = Math.min(1.0, this.settings.vocalVolume * this.settings.masterVolume);
 
-      // Synchronize visual word reading
-      utterance.onboundary = (e) => {
-        if (e.name === 'word') {
-          this.currentLineIndex = Math.floor(e.charIndex / 16);
-          this.notifyState();
-        }
+      let finished = false;
+      const finishOnce = () => {
+        if (finished) return;
+        finished = true;
+        this.clearSpeechKeepAlive();
+        (window as any).__teluguUtterance = null;
+        onDone();
       };
 
-      // When the verse finishes naturally:
+      utterance.onstart = () => {
+        this.startSpeechKeepAlive();
+      };
+
       utterance.onend = () => {
-        if (!this.isPlaying || this.isPaused) return;
-        // Natural peaceful pause before moving to the next verse
-        this.melodyTimeout = setTimeout(() => {
-          this.handleVerseEnd();
-        }, 650) as unknown as number;
+        setTimeout(finishOnce, 500);
       };
 
       utterance.onerror = (e) => {
-        console.warn('Speech recitation notice:', e);
-        if (this.isPlaying && !this.isPaused) {
-          const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
-          this.melodyTimeout = setTimeout(() => {
-            this.handleVerseEnd();
-          }, approxSec * 1000) as unknown as number;
-        }
+        if (e.error === 'canceled' || e.error === 'interrupted') return;
+        finishOnce();
       };
 
-      this.speechUtterance = utterance;
-      window.speechSynthesis.speak(utterance);
+      (window as any).__teluguUtterance = utterance;
 
-      // Watchdog timeout in case speech engine stalls
-      const maxEstimatedSec = Math.max(6.0, (teluguText.length * 0.2) / this.settings.speed);
-      this.melodyTimeout = setTimeout(() => {
+      setTimeout(() => {
         if (this.isPlaying && !this.isPaused) {
-          this.handleVerseEnd();
+          try {
+            window.speechSynthesis.speak(utterance);
+          } catch {
+            finishOnce();
+          }
         }
-      }, maxEstimatedSec * 1000) as unknown as number;
-    } catch (err) {
-      console.warn('Speech synthesis initialization error:', err);
-      const approxSec = Math.max(3.5, (teluguText.length * 0.085) / this.settings.speed);
-      this.melodyTimeout = setTimeout(() => {
-        this.handleVerseEnd();
-      }, approxSec * 1000) as unknown as number;
+      }, 50);
+
+      // Failsafe for announcement
+      this.startupCheckTimeout = setTimeout(() => {
+        if (!finished && !window.speechSynthesis.speaking) {
+          finishOnce();
+        }
+      }, 6000) as unknown as number;
+    } catch {
+      onDone();
     }
   }
 
@@ -1193,10 +1439,7 @@ export class TeluguAudioEngine {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.pause();
     }
-    if (this.melodyTimeout) {
-      clearTimeout(this.melodyTimeout);
-      this.melodyTimeout = null;
-    }
+    this.clearAllSpeechTimers();
     this.notifyState();
   }
 
@@ -1215,14 +1458,13 @@ export class TeluguAudioEngine {
   public stop() {
     this.isPlaying = false;
     this.isPaused = false;
+    this.isAnnouncingCompletion = false;
+    this.isChapterCompleted = false;
+    this.chapterAnnouncementText = '';
+    this.clearAllSpeechTimers();
     this.stopTracking();
     this.stopTanpura();
     this.stopRhythm();
-
-    if (this.melodyTimeout) {
-      clearTimeout(this.melodyTimeout);
-      this.melodyTimeout = null;
-    }
 
     if (this.audioBufferSource) {
       try {
@@ -1236,6 +1478,7 @@ export class TeluguAudioEngine {
       try {
         window.speechSynthesis.cancel();
       } catch {}
+      (window as any).__teluguUtterance = null;
     }
 
     this.notifyState();
@@ -1269,6 +1512,9 @@ export class TeluguAudioEngine {
         duration: this.totalDuration,
         currentVerseIndex: this.currentVerseIndex,
         currentLineIndex: this.currentLineIndex,
+        isChapterCompleted: this.isChapterCompleted,
+        isAnnouncingCompletion: this.isAnnouncingCompletion,
+        announcementText: this.chapterAnnouncementText,
       });
     }
   }

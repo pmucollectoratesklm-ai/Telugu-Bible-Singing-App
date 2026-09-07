@@ -8,6 +8,7 @@ import { PdfUploadModal } from './components/PdfUploadModal';
 import { audioEngine } from './audio/audioEngine';
 import { BibleVerse, AudioEngineSettings } from './types';
 import { PRELOADED_SCRIPTURES, BIBLE_BOOKS } from './data/teluguBibleData';
+import { getBibleChapter } from './data/scriptureService';
 
 export default function App() {
   // Current Selected Scripture
@@ -28,6 +29,9 @@ export default function App() {
     duration: 0,
     currentVerseIndex: 0,
     currentLineIndex: 0,
+    isChapterCompleted: false,
+    isAnnouncingCompletion: false,
+    announcementText: '',
   });
 
   const [settings, setSettings] = useState<AudioEngineSettings>(audioEngine.getSettings());
@@ -37,38 +41,14 @@ export default function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
 
-  // Derive current passage data
+  // Derive current passage data with full verse array (never just 1 verse)
   const currentBook = useMemo(() => {
     return BIBLE_BOOKS.find((b) => b.id === currentBookId) || BIBLE_BOOKS[0];
   }, [currentBookId]);
 
   const currentPassage = useMemo(() => {
-    const key = `${currentBookId}-${currentChapter}`;
-    const found = PRELOADED_SCRIPTURES[key] || customScriptures[key];
-    if (found) {
-      return found;
-    }
-
-    // Default fallback verses if chapter not preloaded
-    const fallbackVerses: BibleVerse[] = [
-      {
-        bookId: currentBookId,
-        bookNameTelugu: currentBook.nameTelugu,
-        bookNameEnglish: currentBook.nameEnglish,
-        chapterNumber: currentChapter,
-        verseNumber: 1,
-        teluguText: `${currentBook.nameTelugu} అధ్యాయము ${currentChapter} - మొదటి వచనము. ప్రభువు నామము స్తుతించబడును గాక.`,
-        transliteration: `${currentBook.nameEnglish} chapter ${currentChapter}, verse 1.`,
-        meaning: `In ${currentBook.nameEnglish} Chapter ${currentChapter}, verse 1. Blessed be the Lord.`,
-      },
-    ];
-
-    return {
-      title: `${currentBook.nameTelugu} ${currentChapter}`,
-      theme: 'దైవ వాక్య పఠనము & ధ్యానము',
-      verses: fallbackVerses,
-    };
-  }, [currentBookId, currentChapter, customScriptures, currentBook]);
+    return getBibleChapter(currentBookId, currentChapter, customScriptures);
+  }, [currentBookId, currentChapter, customScriptures]);
 
   // Connect AudioEngine callback
   useEffect(() => {
@@ -166,15 +146,31 @@ export default function App() {
     audioEngine.nextVerse();
   }, []);
 
-  // Navigate Passage
+  // Navigate Passage with Whole Chapter vs Desired Verse support
   const handleSelectPassage = useCallback(
-    (bookId: string, chapter: number, verseNumber?: number) => {
+    (bookId: string, chapter: number, verseNumber?: number, playMode?: 'chapter' | 'verse') => {
       audioEngine.stop();
       setCurrentBookId(bookId);
       setCurrentChapter(chapter);
       setCurrentVerseNumber(verseNumber);
+
+      const resolved = getBibleChapter(bookId, chapter, customScriptures);
+
+      if (playMode === 'chapter' || verseNumber === undefined) {
+        // User wants to listen to the whole chapter from verse 1
+        setTimeout(() => {
+          audioEngine.playWholeChapter(resolved.verses, 0);
+        }, 150);
+      } else {
+        // User selected a specific desired verse
+        const targetIdx = resolved.verses.findIndex((v) => v.verseNumber === verseNumber);
+        const idxToPlay = targetIdx >= 0 ? targetIdx : 0;
+        setTimeout(() => {
+          audioEngine.playSingleVerse(resolved.verses, idxToPlay);
+        }, 150);
+      }
     },
-    []
+    [customScriptures]
   );
 
   // Handle PDF Extracted Data
@@ -204,6 +200,19 @@ export default function App() {
     },
     [handleSelectPassage]
   );
+
+  // Chapter completion navigation
+  const hasNextChapter = currentChapter < currentBook.totalChapters;
+  const nextChapterNumber = currentChapter + 1;
+
+  const handleNextChapter = useCallback(() => {
+    if (currentChapter < currentBook.totalChapters) {
+      handleSelectPassage(currentBookId, currentChapter + 1);
+      setTimeout(() => {
+        handlePlayWholeChapter(0);
+      }, 300);
+    }
+  }, [currentBookId, currentChapter, currentBook.totalChapters, handleSelectPassage, handlePlayWholeChapter]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#faf9f6] text-stone-900 font-sans selection:bg-amber-200 selection:text-amber-950">
@@ -261,6 +270,13 @@ export default function App() {
           theme={currentPassage.theme}
           onPlayWholeChapter={handlePlayWholeChapter}
           onPlaySingleVerse={handlePlaySingleVerse}
+          selectedVerseNumber={currentVerseNumber}
+          isChapterCompleted={playbackState.isChapterCompleted}
+          isAnnouncingCompletion={playbackState.isAnnouncingCompletion}
+          announcementText={playbackState.announcementText}
+          onNextChapter={handleNextChapter}
+          hasNextChapter={hasNextChapter}
+          nextChapterNumber={nextChapterNumber}
         />
       </main>
 
@@ -286,6 +302,9 @@ export default function App() {
         onPlayWholeChapter={handlePlayWholeChapter}
         onPlaySingleVerse={handlePlaySingleVerse}
         analyser={audioEngine.getAnalyser()}
+        isChapterCompleted={playbackState.isChapterCompleted}
+        isAnnouncingCompletion={playbackState.isAnnouncingCompletion}
+        announcementText={playbackState.announcementText}
       />
 
       {/* Chapter & Verse Selector Modal */}

@@ -1,6 +1,6 @@
 {
-  "name": "Telugu Singing Bible",
-  "description": "Telugu Singing Bible app featuring lyrics, melodic audio playback with different vocal styles, verse and chapter selection, PDF upload, and custom speed and pitch settings.",
+  "name": "GanaVedam - Telugu Singing Bible",
+  "description": "GanaVedam - Melodic Telugu Singing Bible app enabling users to listen to whole chapters or their desired verses with authentic raga melodies, synchronized lyrics, and sacred accompaniments.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
