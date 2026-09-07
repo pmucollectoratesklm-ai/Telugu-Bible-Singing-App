@@ -1,0 +1,6 @@
+{
+  "name": "Telugu Singing Bible",
+  "description": "Telugu Singing Bible app featuring lyrics, melodic audio playback with different vocal styles, verse and chapter selection, PDF upload, and custom speed and pitch settings.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
